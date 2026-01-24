@@ -6,6 +6,11 @@ To set up the package development environment using `uv`, run the following comm
 
 ```sh
 uv init --package
+```
+
+`uv` will create a virtual environment and set up the basic structure for your package. Most importantly, outside `src/` directory, you can import your package as if it is installed.
+
+```sh
 uv add --dev pytest
 mkdir tests
 ```
