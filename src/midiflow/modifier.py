@@ -40,12 +40,10 @@ class Union(Modifier):
     def forward(self, *patterns: Pattern) -> Pattern:
         if not patterns: return Pattern()
         max_duration = max(pattern.duration for pattern in patterns)
-        notes : dict[Fraction, list[Note]] = {}
+        notes : list[tuple[Fraction, Note]] = []
         for pattern in patterns:
-            for start_time, chord in pattern.notes.items():
-                if start_time not in notes:
-                    notes[start_time] = []
-                notes[start_time].extend(chord)
+            for start_time, note in pattern.notes:
+                notes.append((start_time, note))
         return Pattern(notes=notes, duration=max_duration)
 
 class Concat(Modifier):
@@ -54,13 +52,11 @@ class Concat(Modifier):
     def forward(self, *patterns: Pattern) -> Pattern:
         if not patterns: return Pattern()
         duration = Fraction(0)
-        notes : dict[Fraction, list[Note]] = {}
+        notes : list[tuple[Fraction, Note]] = []
         for pattern in patterns:
-            for start_time, chord in pattern.notes.items():
+            for start_time, note in pattern.notes:
                 new_start_time = duration + start_time
-                if new_start_time not in notes:
-                    notes[new_start_time] = []
-                notes[new_start_time].extend(chord)
+                notes.append((new_start_time, note))
             duration += pattern.duration
         return Pattern(notes=notes, duration=duration)
 
@@ -73,15 +69,15 @@ class Trim(Modifier):
     trim_end: bool = False
     
     def forward(self, pattern: Pattern) -> Pattern:
-        notes : dict[Fraction, list[Note]] = {}
-        for start_time, chord in pattern.notes.items():
+        notes : list[tuple[Fraction, Note]] = []
+        for start_time, note in pattern.notes:
             if start_time < 0 or start_time > pattern.duration:
                 continue
-            if self.trim_end: # Trim notes that exceed pattern duration
-                for note in chord:
-                    if start_time + note.duration > pattern.duration:
-                        note.duration = max(Fraction(0), pattern.duration - start_time)
-            notes[start_time] = chord
+            if self.trim_end and start_time + note.duration > pattern.duration:
+                # Trim notes that exceed pattern duration
+                new_duration = max(Fraction(0), pattern.duration - start_time)
+                note = Note(duration=new_duration, note=note.note, velocity=note.velocity)
+            notes.append((start_time, note))
         return Pattern(notes=notes, duration=pattern.duration)
 
 class View(Modifier):
@@ -100,9 +96,9 @@ class View(Modifier):
         if self.start_time == 0 :
             return Pattern(notes=pattern.notes, duration=self.end_time)
 
-        notes : dict[Fraction, list[Note]] = {}
-        for start_time, chord in pattern.notes.items():
-            notes[start_time - self.start_time] = chord
+        notes : list[tuple[Fraction, Note]] = []
+        for start_time, note in pattern.notes:
+            notes.append((start_time - self.start_time, note))
         duration = self.end_time - self.start_time
         return Pattern(notes=notes, duration=duration)
 
@@ -112,12 +108,10 @@ class Stretch(Modifier):
     factor: Annotated[Fraction, Field(ge=0)]
     
     def forward(self, pattern: Pattern) -> Pattern:
-        notes : dict[Fraction, list[Note]] = {}
-        for start_time, chord in pattern.notes.items():
-            notes[start_time * self.factor] = [
-                Note(duration=note.duration * self.factor, note=note.note, velocity=note.velocity)
-                for note in chord
-            ]
+        notes : list[tuple[Fraction, Note]] = []
+        for start_time, note in pattern.notes:
+            new_note = Note(duration=note.duration * self.factor, note=note.note, velocity=note.velocity)
+            notes.append((start_time * self.factor, new_note))
         return Pattern(notes=notes, duration=pattern.duration * self.factor)
 
 class ScaleVelocity(Modifier):
@@ -126,13 +120,11 @@ class ScaleVelocity(Modifier):
     factor: Annotated[float, Field(ge=0)]
     
     def forward(self, pattern: Pattern) -> Pattern:
-        notes : dict[Fraction, list[Note]] = {}
-        for start_time, chord in pattern.notes.items():
-            notes[start_time] = [
-                Note(duration=note.duration, note=note.note, 
+        notes : list[tuple[Fraction, Note]] = []
+        for start_time, note in pattern.notes:
+            new_note = Note(duration=note.duration, note=note.note, 
                      velocity=max(0, min(127, int(note.velocity * self.factor))))
-                for note in chord
-            ]
+            notes.append((start_time, new_note))
         return Pattern(notes=notes, duration=pattern.duration)
 
 class SetVelocity(Modifier):
@@ -141,12 +133,10 @@ class SetVelocity(Modifier):
     velocity: Annotated[int, Field(ge=0, le=127)]
     
     def forward(self, pattern: Pattern) -> Pattern:
-        notes : dict[Fraction, list[Note]] = {}
-        for start_time, chord in pattern.notes.items():
-            notes[start_time] = [
-                Note(duration=note.duration, note=note.note, velocity=self.velocity)
-                for note in chord
-            ]
+        notes : list[tuple[Fraction, Note]] = []
+        for start_time, note in pattern.notes:
+            new_note = Note(duration=note.duration, note=note.note, velocity=self.velocity)
+            notes.append((start_time, new_note))
         return Pattern(notes=notes, duration=pattern.duration)
 
 class ScaleDuration(Modifier):
@@ -155,12 +145,10 @@ class ScaleDuration(Modifier):
     factor: Annotated[Fraction, Field(ge=0)]
     
     def forward(self, pattern: Pattern) -> Pattern:
-        notes : dict[Fraction, list[Note]] = {}
-        for start_time, chord in pattern.notes.items():
-            notes[start_time] = [
-                Note(duration=note.duration * self.factor, note=note.note, velocity=note.velocity)
-                for note in chord
-            ]
+        notes : list[tuple[Fraction, Note]] = []
+        for start_time, note in pattern.notes:
+            new_note = Note(duration=note.duration * self.factor, note=note.note, velocity=note.velocity)
+            notes.append((start_time, new_note))
         return Pattern(notes=notes, duration=pattern.duration)
 
 class SetDuration(Modifier):
@@ -169,12 +157,10 @@ class SetDuration(Modifier):
     duration: Annotated[Fraction, Field(ge=0)]
     
     def forward(self, pattern: Pattern) -> Pattern:
-        notes : dict[Fraction, list[Note]] = {}
-        for start_time, chord in pattern.notes.items():
-            notes[start_time] = [
-                Note(duration=self.duration, note=note.note, velocity=note.velocity)
-                for note in chord
-            ]
+        notes : list[tuple[Fraction, Note]] = []
+        for start_time, note in pattern.notes:
+            new_note = Note(duration=self.duration, note=note.note, velocity=note.velocity)
+            notes.append((start_time, new_note))
         return Pattern(notes=notes, duration=pattern.duration)
 
 class Transpose(Modifier):
@@ -183,14 +169,12 @@ class Transpose(Modifier):
     semitones: Annotated[int, Field(ge=-127, le=127)]
     
     def forward(self, pattern: Pattern) -> Pattern:
-        notes : dict[Fraction, list[Note]] = {}
-        for start_time, chord in pattern.notes.items():
-            notes[start_time] = [
-                Note(duration=note.duration, 
+        notes : list[tuple[Fraction, Note]] = []
+        for start_time, note in pattern.notes:
+            new_note = Note(duration=note.duration, 
                      note=max(0, min(127, note.note + self.semitones)), 
                      velocity=note.velocity)
-                for note in chord
-            ]
+            notes.append((start_time, new_note))
         return Pattern(notes=notes, duration=pattern.duration)
 
 class Reverse(Modifier):
@@ -200,25 +184,23 @@ class Reverse(Modifier):
     """
     
     def forward(self, pattern: Pattern) -> Pattern:
-        notes : dict[Fraction, list[Note]] = {}
-        for start_time, chord in pattern.notes.items():
-            notes[pattern.duration - start_time] = chord
+        notes : list[tuple[Fraction, Note]] = []
+        for start_time, note in reversed(pattern.notes):
+            notes.append((pattern.duration - start_time - note.duration, note))
         return Pattern(notes=notes, duration=pattern.duration)
 
 class Invert(Modifier):
     """Invert the pitches of notes around a specified center pitch."""
     
-    center_pitch: Annotated[int, Field(ge=0, le=127)]
+    pivot: Annotated[int, Field(ge=0, le=127)]
     
     def forward(self, pattern: Pattern) -> Pattern:
-        notes : dict[Fraction, list[Note]] = {}
-        for start_time, chord in pattern.notes.items():
-            notes[start_time] = [
-                Note(duration=note.duration, 
-                     note=max(0, min(127, 2 * self.center_pitch - note.note)), 
+        notes : list[tuple[Fraction, Note]] = []
+        for start_time, note in pattern.notes:
+            new_note = Note(duration=note.duration, 
+                     note=max(0, min(127, 2 * self.pivot - note.note)), 
                      velocity=note.velocity)
-                for note in chord
-            ]
+            notes.append((start_time, new_note))
         return Pattern(notes=notes, duration=pattern.duration)
 
 class Quantize(Modifier):
@@ -227,8 +209,8 @@ class Quantize(Modifier):
     denominator: Annotated[int, Field(gt=0)]
     
     def forward(self, pattern: Pattern) -> Pattern:
-        notes : dict[Fraction, list[Note]] = {}
-        for start_time, chord in pattern.notes.items():
+        notes : list[tuple[Fraction, Note]] = []
+        for start_time, note in pattern.notes:
             quantized_time = start_time.limit_denominator(self.denominator)
-            notes[quantized_time] = chord
+            notes.append((quantized_time, note))
         return Pattern(notes=notes, duration=pattern.duration)

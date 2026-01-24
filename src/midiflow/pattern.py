@@ -1,8 +1,7 @@
 from fractions import Fraction
 from typing import Self, Annotated
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator, PrivateAttr
 from mido import MidiFile, MidiTrack
-from sortedcontainers_pydantic import SortedDict
 
 class Note(BaseModel):
     """A single note with duration, note and velocity."""
@@ -19,23 +18,29 @@ class Pattern(BaseModel):
     This allows for easy alignment when combining patterns:
     as if the pattern is occupying the time range `[0, duration)`.
     """
-    notes: SortedDict[Fraction, list[Note]]
-    duration: Annotated[Fraction, Field(ge=0)]
+    notes: Annotated[list[tuple[Fraction, Note]], Field(default_factory=list)]
+    duration: Annotated[Fraction | None, Field(default=None)]
 
+    _real_start_time: Fraction = PrivateAttr()
+    _real_end_time: Fraction = PrivateAttr()
+
+    @model_validator(mode='after')
+    def post_validation(self) -> Self:
+        self.notes = sorted(self.notes, key=lambda x: x[0])
+        if self.duration is None:
+            self.duration = max((start_time + note.duration for start_time, note in self.notes), default=Fraction(0))
+        
+        self._real_start_time = min((start_time for start_time, _ in self.notes), default=Fraction(0))
+        self._real_end_time = max((start_time + note.duration for start_time, note in self.notes), default=Fraction(0))
+        return self
+    
     @property
     def real_start_time(self) -> Fraction:
-        """The actual start time considering the earliest notes."""
-        if not self.notes: return Fraction(0)
-        return self.notes.keys()[0]
+        return self._real_start_time
     
     @property
     def real_end_time(self) -> Fraction:
-        """The actual end time considering the durations of the last notes."""
-        if not self.notes: return Fraction(0)
-        last_start_time = self.notes.keys()[-1]
-        last_notes = self.notes[last_start_time]
-        max_duration = max(note.duration for note in last_notes)
-        return last_start_time + max_duration
+        return self._real_end_time
 
     @classmethod
     def from_track(cls, track : MidiTrack, ppq: Annotated[int, Field(default=480, ge=0)]) -> Self:
