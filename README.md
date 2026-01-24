@@ -13,4 +13,6 @@ We count time in fraction of full notes, represented as `Fraction` objects from 
 
 ### Limitations
 
-To keep things simple, the library currently only supports 
+To keep things simple, the library is currently designed to work statelessly: everything is immutable. But a comprehensive DAW has to be persistent, supporting user interactions. This includes having a directed acyclic graph of patterns and modifiers, with dynamic synthesis and caching mechanisms. This seems out of scope for this library.
+
+It is, however, possible to have some visualization via Matplotlib. Also, to have some text-based score representation. This is left as future work.

@@ -16,7 +16,14 @@ pattern2 = mf.Pattern(notes=[
 pattern1112 = mf.Concat()(pattern1, pattern1, pattern1, pattern2)
 pattern1112f = mf.Concat()(pattern1112, mf.Invert(pivot=60)(mf.Reverse()(pattern1112)))
 
-timeline = mf.Timeline(canvas=[(Fraction(0), 0, pattern1112f)])
+timeline = mf.Timeline(canvas=[
+    (0, 0, pattern1112f),
+    ("11/4", 0, mf.ProgramChange(program=40))
+])
 
 timeline.play(config)
 
+"""
+A5- D5_ F5=
+  _   _   _
+"""

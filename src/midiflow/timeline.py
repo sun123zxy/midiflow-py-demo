@@ -37,7 +37,7 @@ class Timeline(BaseModel):
                         events.append((time + start_time + note.duration, channel,
                                        Message('note_off', note=note.note, velocity=note.velocity)))
             elif isinstance(item, ProgramChange):
-                track.append(Message('program_change', program=item.program, channel=channel))        
+                events.append((time, channel, Message('program_change', program=item.program, channel=channel)))        
         events = sorted(events, key=lambda e: (e[0], e[1]))
         track = MidiTrack()
         track.append(MetaMessage('set_tempo', tempo=config.tempo, time=0))
